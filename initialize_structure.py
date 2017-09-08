@@ -85,7 +85,8 @@ def build_structure(info_list):
             with open(ele[2], 'w') as fobj:
                 fobj.write("#%s\n" % ele[3])
         else:
-            os.mkdir(ele[2])
+            if not os.path.isdir(os.path.join("./",ele[2])):
+                os.mkdir(ele[2])
     return True
 
 if __name__ == "__main__":
