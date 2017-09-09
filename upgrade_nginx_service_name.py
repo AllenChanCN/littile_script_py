@@ -10,7 +10,6 @@ import subprocess
 import shutil
 import time
 
-PROJECT_NAME = "xy2"
 CONFIG_PATH = "/tmp"
 SERVER_NAME_FILE = "/tmp/err.log"
 TIME_STAMP = time.strftime("%Y%m%d%H%M%S")
@@ -141,8 +140,8 @@ def main():
     project_list = get_project_list(CONFIG_PATH)
     project_list = rechoose(project_list)
     for item_name in project_list:
-        web_config_file = os.path.join(CONFIG_PATH, "%sweb.conf" % PROJECT_NAME)
-        mobile_config_file = os.path.join(CONFIG_PATH, "%smobile.conf" % PROJECT_NAME)
+        web_config_file = os.path.join(CONFIG_PATH, "%sweb.conf" % item_name)
+        mobile_config_file = os.path.join(CONFIG_PATH, "%smobile.conf" % item_name)
         new_name = get_server_name(server_file_name, web_config_file, mobile_config_file)
         if os.path.isfile(web_config_file):
             upgrade_config_file(web_config_file, rule, "\n".join(new_name["web_list"]))
