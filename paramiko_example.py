@@ -38,11 +38,60 @@ class S_Host(object):
                 if not is_multi:
                     result_info = "\n".join(tmp_result[:-1])
         except Exception as e:
-#            print e
             result_info = "\n".join(stderr.readlines() + tmp_result[:-1])
             result_status = False
         finally:
             self.do_disconnect()
+        return result_status, result_info
+
+    def exe_cmd_channel(self, cmds, is_multi=False, is_root=False, root_pwd=""):
+        judge_flag = "$ "
+        if not is_multi:
+            cmds = [cmds]
+        self.do_connect()
+        result_status = True
+        result_info = ""
+        try:
+            self.channel = self.ssh.invoke_shell()
+            buff = ''
+            while not buff.endswith(judge_flag):
+                resp = self.channel.recv(9999)
+                buff += resp
+                if is_root:
+                    judge_flag = "# "
+                    buff = ""
+                    self.channel.send("su -\n")
+                    while not buff.endswith("assword: "):
+                        resp = self.channel.recv(9999)
+                        buff += resp
+                    buff = ""
+                    self.channel.send("%s\n" % root_pwd)
+                    while not buff.endswith(judge_flag):
+                        resp = self.channel.recv(9999)
+                        buff += resp
+                        if "incorrect" in buff or "assword: " in buff:
+                            self.do_disconnect()
+                            return False, "Invalid password"
+            for cmd in cmds:
+                buff1 = ""
+                buff2 = ""
+                self.channel.send("%s\n" % cmd)
+                while not buff1.endswith(judge_flag):
+                    resp = self.channel.recv(9999)
+                    buff1 += resp
+                result_info = "\n".join(buff1.split(repr(judge_flag.strip()))[0].split("\n")[1:-1]).strip()
+                self.channel.send("echo $?\n")
+                while not buff2.endswith(judge_flag):
+                    resp = self.channel.recv(9999)
+                    buff2 += resp
+                status_code = re.search("\$\?\s*([^\s]*)\s*", buff2).groups()
+                if status_code[0] != "0":
+                    raise IOError("执行命令 %s 失败。" % cmd)
+        except:
+            result_status = False
+        finally:
+            self.do_disconnect()
+
         return result_status, result_info
 
 def main():
