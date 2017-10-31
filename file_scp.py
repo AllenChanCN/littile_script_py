@@ -21,14 +21,19 @@ class S_Host(object):
     def do_connect(self):
         self.ssh = SSHClient()
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.ssh.connect(username=self.user, password=self.password, port=self.port, hostname=self.host, key_filename=self.key_file)
+        if self.key_file:
+            self.ssh.connect(username=self.user, password=self.password, port=self.port, hostname=self.host, key_filename=self.key_file)
+        else:
+            self.ssh.connect(username=self.user, password=self.password, port=self.port, hostname=self.host)
         self.scp = SCPClient(self.ssh.get_transport())
         return True
 
     def do_disconnect(self):
-        self.scp.close()
-        self.ssh.close()
-
+        try:
+            self.scp.close()
+            self.ssh.close()
+        finally:
+            return True
     def do_put(self, source_file, target_file, single_call=True):
         try:
             if single_call:
@@ -96,9 +101,22 @@ class S_Host(object):
             self.do_disconnect()
         return True
 
-def main():
-    node1 = S_Host()
-    node1.do_put("/tmp/ifcfg.log", "/opt/abc.log")
-    node1.do_get("/tmp/abc.log", "/root/DEF.log")
+def main(atype, s_info, file1, file2):
+    if not isinstance(s_info, dict):
+        s_info = {}
+    s_host = s_info.get("host", "")
+    s_user = s_info.get("user", "")
+    s_password = s_info.get("password", "")
+    s_port = s_info.get("port", 22)
+    s_file = s_info.get("key_file", "")
+    node1 = S_Host(host=s_host, user=s_user, password=s_password, port=s_port, key_file=s_file)
+    if atype == "PUT":
+        node1.do_put(file1, file2)
+    elif atype == "GET":
+        node1.do_get(file1, file2)
+    return True
+
 if __name__ == "__main__":
-    sys.exit(0) if main() else sys.exit(1)
+    s_info = {'info': 'normal_value=keyword1\nsuper_value=keyword2', 'title': 'admin', 'host': '127.0.0.1', 'user': 'user1', 'key_file': '/opt/elif_yek/id_rsa1', 'password': 'value1', 'port': 22}
+    main("GET", s_info, "/opt/file", "/tmp/file")
+    sys.exit(0)
