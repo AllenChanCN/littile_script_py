@@ -1,0 +1,29 @@
+yum install -y subversion subversion-devel
+mkdir -p /opt/ops_svn_repo
+svnadmin create /opt/ops_svn_repo
+cd /opt/ops_svn_repo/conf/
+vim svnserve.conf
+vim passwd
+vim authz
+
+yum install -y httpd mod_dav_svn
+
+htpasswd -c /opt/ops_svn_repo/conf/passwdfile testuser
+
+vim /etc/httpd/conf.d/subversion.conf
+
+    LoadModule dav_svn_module     modules/mod_dav_svn.so
+    LoadModule authz_svn_module   modules/mod_authz_svn.so
+
+    <Location /svn>
+        DAV svn
+        SVNPath /opt/ops_svn_repo
+        AuthType Basic
+        AuthName "Authorization Realm"
+        AuthUserFile /opt/ops_svn_repo/conf/passwdfile
+        AuthzSVNAccessFile /opt/ops_svn_repo/conf/authz
+        Require valid-user
+    </Location>
+
+vim /etc/httpd/conf/httpd.conf
+    listen:127.0.0.1:8080
