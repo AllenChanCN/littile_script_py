@@ -1,0 +1,11 @@
+1，关闭 selinux
+2, 修改hostname
+3，安装基础Yum组件 （开发组件，lsof, sar, netstat, telnet, ntp, vim 等)
+4，安装系统日志工具rsyslog
+5，同步时间服务器
+6，安装zabbix客户端
+7, 优化内核配置 （/etc/sysctl.conf）
+8, 修改最大文件打开数
+9, 创建普通用户
+10, 修改登录密码，禁止root登录，禁止密码登录，修改SSH端口
+11, 修改iptables规则
