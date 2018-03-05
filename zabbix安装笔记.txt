@@ -1,0 +1,14 @@
+yum install -y openssl openssl-devel libssh2 libssh2-devel libxml2 libxml2-devel libevent libevent-devel curl libcurl libcurl-devel
+
+./configure --prefix=/usr/local/zabbix \
+--enable-server \
+--enable-agent \
+--with-mysql\
+--with-net-snmp \
+--with-libcurl \
+--with-libxml2 \
+--enable-ipv6 \
+--with-ssh2 \
+--with-iconv \
+--with-openssl \
+--with-jabber \
