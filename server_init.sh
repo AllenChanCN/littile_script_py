@@ -15,7 +15,7 @@ function set_se(){
 #2, 修改hostname
 function set_hostname() {
     ip_addr=$(ip addr show |sed -n "s/^\s*inet\s\+\(.*\)\/.*/\1/gp" |grep -v "127.0.0.1")
-    newHostname=$(awk -F "." '{print "node_"$3"_"$4}' <<<${ip_addr})
+    newHostname=$(awk -F "." '{print "node."$3"."$4}' <<<${ip_addr})
     local tmp_ret=0
     hostname ${newHostname} || tmp_ret=$?
     echo "127.0.0.1 ${newHostname}" >> /etc/hosts || tmp_ret=$?
@@ -27,7 +27,7 @@ function set_hostname() {
 function ins_base_component() {
     local tmp_ret=0
     yum groupinstall -y "Development tools" &> /dev/null || tmp_ret=1
-    components="wget lsof telnet vim net-tools rsyslog ntpdate"
+    components="wget lsof telnet vim net-tools rsyslog ntpdate sysstat bind-utils"
     for i in ${components}
     do
         yum install -y ${i} &> /dev/null || tmp_ret=1
@@ -160,7 +160,7 @@ function add_user() {
     echo "W\"l0X$C,o_Mn{6aw" | passwd avgUser --stdin &> /dev/null || tmp_ret=1
     mkdir -p /home/avgUser/.ssh &> /dev/null || tmp_ret=1
     cat > /home/avgUser/.ssh/authorized_keys << EOF || tmp_ret=1
-ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAukHEI8+TZc0qyJ5oIPe/73mElDod3ZR0jVakwUZDnKBdefFauj5kGqCrhKy8iR9QXYXs4aBc+rEj5s8DJzcO50khLOOeSK1b/ztvUa1gfUGtCG/1ZhE13J2M5UqjNm1DdPXoMR52gW3EiA2N/acsNS+yjxUsKZadJxXo/QHJm1R4OOskV+4AdiJZpbZdnm9f7DMFg1L+VPFvQR0Oo118z44zaatllsUZ33J+4iwwo8+BYLO1gWoVi+giiLsPZ0a0d/p7/UtHLzfbdEdSQYKAXmax+CzAUXvDAqbSgMUHXBIx2FohOdR7bQhQXVEOhY0sPLORq8sVeR6dTBvXxjJMcQ== root@node_0_73
+ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAxq1Dp54cOuT2mNkesMLTJPMBcxoqDAMUCp7iElOopSCCXedCPbqLjs/KbEx5fOiDmKLqYZ3D3Vmal+4+PRyTAty++KH001wINBU4xE6iiKdMY2bZeC0GXl6XHSzgH80y+rxNz3wckaYzdsYmr2um/Atje80fYsYbFeUr6CxI7TwVbTjeq1V0/XTCH40weJU5W0EQuLghBN8l6roKlhDUSMdMOfoZeDZ8NYTlOUSZdsgCg9wv1h16KAFGoq9hfXZwVf9ajEuWLjHZ8Jm0Gcxy/dqw7gMYGPZ7fO8UDTeTa04tNla5toNFJgZIe1xqvH6VYHKrY+w5sRLp+lO+qiQssQ== root@node_0_73
 EOF
     chmod 600 /home/avgUser/.ssh -R &> /dev/null || tmp_ret=1
     chmod 700 /home/avgUser/.ssh/ &> /dev/null || tmp_ret=1
@@ -168,6 +168,7 @@ EOF
 
     return ${tmp_ret}
 }
+
 #10, 修改登录密码，禁止root登录，禁止密码登录，修改SSH端口
 function init_sshd() {
     local tmp_ret=0
@@ -194,10 +195,10 @@ function modify_iptables() {
 -A INPUT -s 127.0.0.1 -j ACCEPT
 -A INPUT -s 192.168.0.0/16 -j ACCEPT
 -A INPUT -s 103.212.33.132 -j ACCEPT 
--A INPUT -s 221.120.162.108 -j ACCEPT 
+-A INPUT -s 221.120.162.108/24 -j ACCEPT 
 -A INPUT -s 118.107.181.52 -j ACCEPT 
 -A INPUT -s 203.160.52.37 -j ACCEPT 
-
+-A INPUT -p tcp --dport 80 -j ACCEPT 
 -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT 
 -A INPUT -j REJECT --reject-with icmp-host-prohibited 
 -A FORWARD -j REJECT --reject-with icmp-host-prohibited 
@@ -238,3 +239,41 @@ main
 
 exit $?
 
+# <?xml version="1.0" encoding="utf-8"?>
+# <zone>
+#   <short>Public</short>
+#   <description>For use in public areas. You do not trust the other computers on networks to not harm your computer. Only selected incoming connections are accepted.</description>
+#   <service name="dhcpv6-client"/>
+#   <service name="ssh"/>
+#   <rule family="ipv4">
+#     <source address="127.0.0.1"/>
+#     <accept/>
+#   </rule>
+#   <rule family="ipv4">
+#     <source address="192.168.0.0/16"/>
+#     <accept/>
+#   </rule>
+#   <rule family="ipv4">
+#     <source address="103.212.33.132"/>
+#     <accept/>
+#   </rule>
+#   <rule family="ipv4">
+#     <source address="221.120.162.0/24"/>
+#     <accept/>
+#   </rule>
+#   <rule family="ipv4">
+#     <source address="118.107.181.52"/>
+#     <accept/>
+#   </rule>
+#   <rule family="ipv4">
+#     <source address="203.160.52.37"/>
+#     <accept/>
+#   </rule>
+#   <rule family="ipv4">
+#     <source address="103.240.183.224"/>
+#     <accept/>
+#   </rule>
+# </zone>
+
+# sed -i "s/\*\/10 \* \* \* \*/\* \* \* \* \*/g" /etc/cron.d/sysstat
+# sed -i "s/^HISTORY=.*$/HISTORY=7/g" /etc/sysconfig/sysstat

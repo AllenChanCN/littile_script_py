@@ -90,7 +90,7 @@ function compile_install(){
     record_log="${ABSOLUTE_PATH}/${package_name}.log"
     cd ${filename} &> ${record_log}
     
-    if [ "${package_name}" == "gperftools-master" ]
+    if [ -f "autogen.sh" ]
     then
         ./autogen.sh &>> ${record_log} || tmp_result=1
     fi
@@ -121,7 +121,7 @@ function main()
     INSTALL_LOG="${ABSOLUTE_PATH}/install.log"
     INSTALL_DIR="/usr/local/nginx"
     DATA_DIR=""
-    PACKAGE_NAME="nginx-1.11.5.tar.gz"
+    PACKAGE_NAME="nginx-1.13.9.tar.gz"
     dir_name=$(awk -F ".tar.gz" '{print $1}' <<< "${PACKAGE_NAME}")
     USER="nginx"
     GROUP="nginx"
@@ -138,6 +138,7 @@ function main()
             return ${tmp_result}
         fi
     fi
+
     id ${USER} &> /dev/null
     tmp_result=$?
     if [ "${tmp_result}" != 0 ]
@@ -154,7 +155,7 @@ function main()
     ldconfig
     
     cd ${ABSOLUTE_PATH} &> /dev/null
-    for package_name in "pcre-8.39.tar.gz/gz" "zlib-1.2.8.tar.gz/tar" "openssl-1.1.0c.tar.gz/gz" "${PACKAGE_NAME}/gz" "GeoIP.tar.gz/gz" "libunwind-0.99-beta.tar.gz/gz" "gperftools-master.zip/zip"
+    for package_name in "pcre-8.39.tar.gz/gz" "zlib-1.2.8.zip/zip" "openssl-1.1.0c.zip/zip" "${PACKAGE_NAME}/gz" "GeoIP.tar.gz/gz" "libunwind-1.2.1.tar.gz/gz" "gperftools-perftools-1.6.zip/zip"
     do
         local tmp_package=${package_name%/*}
         local tmp_type=${package_name#*/}
@@ -188,8 +189,8 @@ function main()
     fi
     
     compile_install "GeoIP" "${ABSOLUTE_PATH}/GeoIP-1.4.8" ""
-    compile_install "libunwind-0.99" "${ABSOLUTE_PATH}/libunwind-0.99-beta" ""
-    compile_install "gperftools-master" "${ABSOLUTE_PATH}/gperftools-master" "--enable-frame-pointers"
+    compile_install "libunwind-1.2.1" "${ABSOLUTE_PATH}/libunwind-1.2.1" ""
+   # compile_install "gperftools-perftools-1.6" "${ABSOLUTE_PATH}/gperftools-perftools-1.6" "--enable-frame-pointers"
     tmp_result=$?
     if [ "${tmp_result}" != 0 ]
     then
@@ -234,9 +235,9 @@ function main()
         /bin/cp -f "${ABSOLUTE_PATH}/GeoLiteCity.dat" "${INSTALL_DIR}"
     fi
 
-    if [ -f "${ABSOLUTE_PATH}/GeoIP.dat" ]
+    if [ -f "${ABSOLUTE_PATH}/GeoIP-1.4.8" ]
     then
-        /bin/cp -f "${ABSOLUTE_PATH}/GeoIP.dat" "${INSTALL_DIR}"
+        /bin/cp -f "${ABSOLUTE_PATH}/GeoIP-1.4.8" "${INSTALL_DIR}"
     fi
     
     if [ -d "${ABSOLUTE_PATH}/conf" ]
