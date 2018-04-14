@@ -51,24 +51,24 @@ function decompress_package(){
     local target_path=$3
     if [ "${package_type}" == "gz" ]
     then
-        tar -zxf ${package_name} -C ${target_path}
+        tar -zxf ${package_name} -C ${target_path} &>> ${INSTALL_LOG}
     elif [ "${package_type}" == "bz2" ]
     then
-        tar -jxf ${package_name} -C ${target_path}
+        tar -jxf ${package_name} -C ${target_path} &>> ${INSTALL_LOG}
     elif [ "${package_type}" == "xz" ]
     then
-        tar -Jxf ${package_name} -C ${target_path}
+        tar -Jxf ${package_name} -C ${target_path} &>> ${INSTALL_LOG}
     elif [ "${package_type}" == "gzip" ]
     then
-        gzip -d ${package_name} &> /dev/null
+        gzip -d ${package_name} &> /dev/null &>> ${INSTALL_LOG}
     elif [ "${package_type}" == "zip" ]
     then
-        unzip -o ${package_name} -d ${target_path} &> ${INSTALL_LOG}
+        unzip -o ${package_name} -d ${target_path} &>> ${INSTALL_LOG}
     elif [ "${package_type}" == "tar" ]
     then
-        tar -xf ${package_name} -C ${target_path}
+        tar -xf ${package_name} -C ${target_path} &>> ${INSTALL_LOG}
     else
-        echo "The type(${package_type}) is not support."
+        Log "error" "The type(${package_type}) is not support."
         return 1
     fi
     local tmp_result=$?
@@ -110,6 +110,16 @@ function py_install(){
     local install_dir=$2
     local tmp_result=0
     local record_log="${ABSOLUTE_PATH}/${package_name}.log"
+    pip install ${package_name} &> ${record_log}
+    if [ "$?" == "0" ]
+        then
+        return 0
+    fi
+    if [ ! -d "${install_dir}" ]
+        then
+        Log "error" "Failed to install ${package_name}."
+        return 1
+    fi
     cd ${install_dir} &> ${record_log}
     python setup.py install &> ${record_log} || tmp_result=$?
     cd - &> ${record_log}
@@ -127,7 +137,7 @@ function fn_main()
 
     if [ "$(whoami)" != "root" ]
     then
-        echo "This script must executed by root."
+        Log "error" "This script must executed by root."
         return 1
     fi
 
@@ -143,7 +153,7 @@ function fn_main()
     ldconfig
 
     cd ${ABSOLUTE_PATH} &> /dev/null
-    for package_name in "Python-2.7.11.tgz/gz" "pycrypto-2.6.1.tar.gz/gz" "pyasn1-0.1.9.tar.gz/gz" "cryptography-1.5.tar.gz/gz" "cffi-1.7.0.tar.gz/gz" "pycparser-2.14.tar.gz/gz" "six-1.10.0.tar.gz/gz" "idna-2.1.tar.gz/gz" "paramiko-2.1.0.tar.gz/gz" "setuptools-26.0.0.tar.gz/gz" "enum34-1.1.6.tar.gz/gz" "ipaddress-1.0.17.tar.gz/gz"
+    for package_name in "Python-2.7.14.tgz/gz" "pycrypto-2.6.1.tar.gz/gz" "pyasn1-0.1.9.tar.gz/gz" "cryptography-1.5.tar.gz/gz" "cffi-1.7.0.tar.gz/gz" "pycparser-2.14.tar.gz/gz" "six-1.10.0.tar.gz/gz" "idna-2.1.tar.gz/gz" "paramiko-2.1.0.tar.gz/gz" "setuptools-26.0.0.tar.gz/gz" "enum34-1.1.6.tar.gz/gz" "ipaddress-1.0.17.tar.gz/gz"
     do
         local tmp_package=${package_name%/*}
         local tmp_type=${package_name#*/}
@@ -151,6 +161,10 @@ function fn_main()
         tmp_result=$?
         if [ "${tmp_result}" != 0 ]
         then
+            if [ "${tmp_package}" != "Python-2.7.14.tgz" ]
+                then
+                continue
+            fi
             Log "error" "Failed to decompress ${package_name}."
             return ${tmp_result}
         fi
@@ -158,7 +172,7 @@ function fn_main()
 
     if [ ! -d "/usr/local/python27" ]
     then
-        compile_install "Python27" "${ABSOLUTE_PATH}/Python-2.7.11" "--prefix=/usr/local/python27" 
+        compile_install "Python27" "${ABSOLUTE_PATH}/Python-2.7.14" "--prefix=/usr/local/python27" 
         tmp_result=$?
         if [ "${tmp_result}" != 0 ]
         then

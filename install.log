@@ -1,0 +1,4 @@
+[2018-04-14 15:48:35] [17076] [33;42m[1mERROR[0m : Cann't to find script compare_version.sh to validate version of python.
+[2018-04-14 15:48:35] [17076] [33;42m[1mERROR[0m : Failed to execute flask_auto_install.sh.
+[2018-04-14 17:39:27] [18989] [33;42m[1mERROR[0m : Cann't to find script compare_version.sh to validate version of python.
+[2018-04-14 17:39:27] [18989] [33;42m[1mERROR[0m : Failed to execute flask_auto_install.sh.

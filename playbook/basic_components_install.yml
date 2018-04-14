@@ -1,0 +1,20 @@
+---
+- hosts: all
+  become: yes
+  become_method: su
+  tasks:
+    - name: 安装最新版本基础组件
+      yum:
+        name={{ item }}
+        state=latest
+      with_items:
+        - "@Development tools"
+        - wget
+        - lsof
+        - telnet
+        - vim
+        - net-tools
+        - rsyslog
+        - ntpdate
+        - bind-utils
+        - libselinux-python

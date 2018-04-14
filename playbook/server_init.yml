@@ -1,0 +1,181 @@
+---
+- hosts: all
+  become: yes
+  become_method: su
+  vars:
+    hname: "node_{{ \"_\".join(ansible_env.SSH_CONNECTION.split()[-2].split(\".\")[-2:]) }}"
+  tasks:
+    - name: ensure components is latest version
+      yum:
+        name={{ item }}
+        state=latest
+      with_items:
+        - "@Development tools"
+        - wget
+        - lsof
+        - telnet
+        - vim
+        - net-tools
+        - rsyslog
+        - ntpdate
+        - bind-utils
+        - libselinux-python
+    - name: 关闭selinux
+      selinux: state=disabled
+    - name: 修改selinux配置文件
+      lineinfile:
+        dest: /etc/selinux/config
+        regexp: ^SELINUX=
+        line: SELINUX=disabled
+    - name: 修改主机名文件 /etc/hosts
+      lineinfile:
+        dest: /etc/hosts
+        line: '127.0.0.1 {{hname}}'
+        insertbefore: '^127'
+        state: present
+    - name: 修改主机名文件 /etc/sysconfig/network
+      lineinfile:
+        dest: /etc/sysconfig/network
+        regexp: ^HOSTNAME=
+        line: 'HOSTNAME={{hname}}'
+        state: present
+    - name: 修改主机名
+      hostname:
+        name: "{{hname}}"
+    - name: 确认cron文件存在
+      file:
+        path: /var/spool/cron/root
+        state: touch
+        mode: 0600
+        owner: root
+        group: root
+    - name: 修改cron文件
+      lineinfile:
+        dest: /var/spool/cron/root
+        regexp: "ntpdate"
+        line: "*/10 * * * * /usr/sbin/ntpdate -u 0.centos.pool.ntp.org &> /dev/null"
+        state: present
+    - name: 获取文件sysctl.conf
+      template:
+        src: /opt/cfg_files/sysctl.conf
+        dest: /etc/sysctl.conf
+        mode: 0644
+        owner: root
+        group: root
+    - name: 刷新sysctl
+      command: /sbin/sysctl -p
+    - name: 刷新/etc/security/limits.conf，修改soft
+      lineinfile:
+        path: /etc/security/limits.conf
+        regexp: ^\*\s*soft\s*nofile\s*.*
+        line: "*               soft    nofile  65535"
+        state: present
+    - name: 刷新/etc/security/limits.conf，修改hard
+      lineinfile:
+        path: /etc/security/limits.conf
+        regexp: ^\*\s*hard\s*nofile\s*.*
+        line: "*               hard    nofile  65535"
+        state: present
+    - name: 创建普通登录用户组
+      group:
+        name: avgUser
+        state: present
+    - name: 创建普通登录用户
+      user: 
+        append: yes
+        name: avgUser
+        group: avgUser
+        password: W"l0X$C,o_Mn{6aw
+    - name: 放置登录公钥
+      template:
+        src: /opt/cfg_files/avgKey 
+        dest: /home/avgUser/.ssh/authorized_keys
+        mode: 0600
+        owner: avgUser
+        group: avgUser
+    - name: 创建监控用户组
+      group:
+        name: zabbix
+        state: present
+    - name: 创建监控用户
+      user:
+        append: yes
+        name: zabbix
+        group: zabbix
+        shell: /sbin/nologin
+        createhome: no
+    - name: 创建Git用户组
+      group:
+        name: git
+        state: present
+    - name: 创建Git用户
+      user:
+        append: yes
+        name: git
+        group: git
+        shell: /usr/bin/git-shell
+        createhome: no
+    - name: 修改sshd的配置文件，禁止root登录
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?PermitRootLogin +.*"
+        line: "PermitRootLogin no"
+        state: present
+    - name: 修改sshd的配置文件，禁止密码登录
+      lineinfile: 
+        path: /etc/ssh/sshd_config
+        regexp: "^#?PasswordAuthentication +.*"
+        line: "PasswordAuthentication no"
+        state: present
+    - name: 修改sshd的配置文件，修改登录端口
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?Port +.*"
+        line: "Port 2022"
+        state: present
+    - name: 重启sshd服务
+      service: 
+        name: sshd
+        state: restarted
+    - name: 停止iptables服务
+      shell: /etc/init.d/iptables stop
+    - name: 设置iptables，INPUT默认允许127.0.0.1 登录
+      iptables:
+        chain: INPUT
+        source: 127.0.0.1
+        jump: ACCEPT
+    - name: 设置iptables，INPUT默认允许192.168.0.0/16 登录
+      iptables:
+        chain: INPUT
+        source: 192.168.0.0/16
+        jump: ACCEPT
+    - name: 设置iptables，INPUT默认允许103.212.33.132 登录
+      iptables:
+        chain: INPUT
+        source: 103.212.33.132
+        jump: ACCEPT
+    - name: 设置iptables，INPUT默认允许221.120.162.108/24 登录
+      iptables:
+        chain: INPUT
+        source: 221.120.162.108/24
+        jump: ACCEPT
+    - name: 设置iptables，INPUT默认允许已有连接保持连接
+      iptables:
+        chain: INPUT
+        ctstate: ESTABLISHED,RELATED
+        jump: ACCEPT
+    - name: 设置iptables，默认禁止ping
+      iptables:
+        chain: INPUT
+        protocol: icmp
+        reject_with: icmp-host-prohibited
+    - name: 设置iptables，INPUT默认为DROP
+      iptables:
+        chain: INPUT
+        policy: DROP
+    - name: 设置iptables，FROWARD默认为DROP
+      iptables:
+        chain: FORWARD
+        policy: DROP
+    - name: 保存iptables 规则
+      shell: /etc/init.d/iptables save
