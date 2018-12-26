@@ -1,0 +1,6 @@
+---
+exeList:
+  - '/bin/bash /tmp/tengine_install.sh &> /tmp/tengine_install.log'
+  - '/sbin/chkconfig --add nginx'
+  - '/sbin/service nginx start'
+  - '/bin/rm /tmp/tengine_install.sh -rf'

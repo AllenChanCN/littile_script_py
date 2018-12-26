@@ -1,0 +1,12 @@
+---
+- name: "加载被删除文件的参数信息"
+  include_vars:
+    file: "{{remove_type}}.yml"
+  when: remove_type is defined
+- name: "删除目标文件"
+  file:
+    path: '{{ item.get("path", "") }}'
+    state: absent
+  with_items:
+    '{{ deleteFileList }}'
+  ignore_errors: true

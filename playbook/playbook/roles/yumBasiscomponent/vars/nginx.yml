@@ -1,0 +1,18 @@
+---
+install_packages:
+  - pcre
+  - pcre-devel
+  - openssl
+  - openssl-devel
+  - libxml2
+  - libxml2-devel
+  - libxslt
+  - libxslt-devel
+  - gd
+  - gd-devel
+  - perl-devel
+  - perl-ExtUtils-Embed
+  - libxslt
+  - libxslt-devel
+  - zlib
+  - zlib-devel

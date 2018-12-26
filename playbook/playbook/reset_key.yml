@@ -1,0 +1,9 @@
+---
+- hosts: all
+  # become: yes
+  # become_method: su
+  roles:
+    - role: copyFiles
+      copy_type: "avgKey"
+    - role: modifyFiles
+      modify_type: "avgKey"

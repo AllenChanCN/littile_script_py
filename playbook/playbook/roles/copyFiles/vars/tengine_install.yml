@@ -1,0 +1,74 @@
+---
+fileList:
+  - name: "nginx启动文件"
+    src: nginx
+    dest: /etc/rc.d/init.d/nginx
+    mode: "0755"
+    owner: root
+    group: root
+    d_mode: "0755"
+    d_owner: root
+    d_group: root
+  - name: "geoip 安装文件"
+    src: GeoIP.tar.gz
+    dest: /tmp/GeoIP.tar.gz
+    mode: "0755"
+    owner: root
+    group: root
+    d_mode: "1777"
+    d_owner: root
+    d_group: root
+  - name: "pcre 安装文件"
+    src: pcre-8.39.tar.gz
+    dest: /tmp/pcre-8.39.tar.gz
+    mode: "0755"
+    owner: root
+    group: root
+    d_mode: "1777"
+    d_owner: root
+    d_group: root
+  - name: "tengine 安装文件"
+    src: tengine-2.2.2.tar.gz
+    dest: /tmp/tengine-2.2.2.tar.gz
+    mode: "0755"
+    owner: root
+    group: root
+    d_mode: "1777"
+    d_owner: root
+    d_group: root
+  - name: "GeoIP dat文件"
+    src: GeoIP.dat.gz
+    dest: /tmp/GeoIP.dat.gz
+    mode: "0755"
+    owner: root
+    group: root
+    d_mode: "1777"
+    d_owner: root
+    d_group: root
+  - name: "GeoLiteCity dat文件"
+    src: GeoLiteCity.dat.gz
+    dest: /tmp/GeoLiteCity.dat.gz
+    mode: "0755"
+    owner: root
+    group: root
+    d_mode: "1777"
+    d_owner: root
+    d_group: root
+  - name: "tengine 2.2.2 安装脚本"
+    src: tengine_install.sh
+    dest: /tmp/tengine_install.sh
+    mode: "0755"
+    owner: root
+    group: root
+    d_mode: "1777"
+    d_owner: root
+    d_group: root
+  - name: "nginx日志轮转配置文件"
+    src: nginx_logrotate
+    dest: /etc/logrotate.d/nginx
+    mode: "0644"
+    owner: root
+    group: root
+    d_mode: "0644"
+    d_owner: root
+    d_group: root

@@ -1,0 +1,5 @@
+---
+deleteFileList:
+  - path: "/usr/sbin/aliyun-service"
+  - path: "/tmp/uninstall.sh"
+  - path: "/usr/local/share/aliyun-assist"

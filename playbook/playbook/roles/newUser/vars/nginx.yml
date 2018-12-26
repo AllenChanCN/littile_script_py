@@ -1,0 +1,4 @@
+---
+userList:
+  - userName: "nginx"
+    groupName: "nginx"

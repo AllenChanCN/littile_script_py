@@ -1,0 +1,4 @@
+---
+exeList:
+  - '/bin/bash /tmp/uninstall.sh &> /tmp/ali_uninstall.log'
+  - '/usr/bin/pkill -9 aliyun-service'

@@ -1,0 +1,4 @@
+---
+allow_ports:
+  - destination_port: "80"
+  - destination_port: "443"

@@ -1,0 +1,11 @@
+---
+fileList:
+  - name: "ali_service 卸载脚本"
+    src: uninstall.sh
+    dest: /tmp/uninstall.sh
+    mode: "0755"
+    owner: root
+    group: root
+    d_mode: "1777"
+    d_owner: root
+    d_group: root

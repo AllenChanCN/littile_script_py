@@ -1,0 +1,6 @@
+---
+modify_items:
+  - fname: "/home/avgUser/.ssh/known_hosts"
+    regexp: ^\[103.212.33.132\]:.*
+    line: ""
+    state: absent

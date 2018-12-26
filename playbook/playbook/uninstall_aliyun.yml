@@ -1,0 +1,11 @@
+---
+- hosts: ali
+  become: yes
+  become_method: su
+  roles:
+    - role: copyFiles
+      copy_type: "uninstall_ali"
+    - role: exeCmds
+      exe_type: "ali_uninstall"
+    - role: removeFiles
+      remove_type: "ali_service"

@@ -1,0 +1,10 @@
+---
+modify_items:
+  - fname: "/etc/ld.so.conf"
+    regexp: "^/usr/local/pcre/lib$"
+    line: "/usr/local/pcre/lib"
+    state: present
+  - fname: "/etc/ld.so.conf"
+    regexp: "^/usr/local/lib$"
+    line: "/usr/local/lib"
+    state: present

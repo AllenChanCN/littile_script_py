@@ -1,0 +1,20 @@
+---
+unarchive_paras:
+  - name: "GeoIP dat文件"
+    src: GeoIP.dat.gz
+    dest: /tmp
+    mode: "0755"
+    owner: root
+    group: root
+    d_mode: "0777"
+    d_owner: root
+    d_group: root
+  - name: "GeoLiteCity dat文件"
+    src: GeoLiteCity.dat.gz
+    dest: /tmp
+    mode: "0755"
+    owner: root
+    group: root
+    d_mode: "0777"
+    d_owner: root
+    d_group: root

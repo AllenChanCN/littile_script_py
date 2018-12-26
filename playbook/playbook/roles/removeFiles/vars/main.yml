@@ -1,0 +1,4 @@
+---
+deleteFileList:
+  - name: "空白文件，加载说明缺少参数"
+  - path: "/opt/a/b/c"

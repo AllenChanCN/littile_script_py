@@ -1,0 +1,17 @@
+---
+- hosts: all
+  become: yes
+  become_method: su
+  roles:
+    - role: newUser
+      userParas: "nginx"
+    - role: firewalld
+      initialize_type: "nginx"
+    - role: yumBasiscomponent
+      install_type: "nginx"
+    - role: copyFiles
+      copy_type: "tengine_install"
+    - role: modifyFiles
+      modify_type: "tengine_install"
+    - role: exeCmds
+      exe_type: "tengine_install"

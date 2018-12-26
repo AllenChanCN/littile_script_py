@@ -1,0 +1,56 @@
+---
+- name: 加载iptables参数信息
+  include_vars:
+    file: "{{initialize_type}}.yml"
+- name: 停止iptables服务
+  shell: /etc/init.d/iptables stop
+  when: is_init is defined and is_init
+- name: 设置iptables INPUT 允许访问的节点
+  iptables:
+    chain: INPUT
+    source: "{{ item }}"
+    jump: ACCEPT
+  with_items:
+    "{{ allow_nodes }}"
+  when: allow_nodes is defined and allow_nodes
+- name: 设置iptables INPUT 允许访问的端口-tcp
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ item.destination_port }}"
+    jump: ACCEPT
+  with_items:
+    "{{ allow_ports }}"
+  when: allow_ports is defined and allow_ports
+- name: 设置iptables INPUT 允许访问的端口-udp
+  iptables:
+    chain: INPUT
+    protocol: udp
+    destination_port: "{{ item.destination_port }}"
+    jump: ACCEPT
+  with_items:
+    "{{ allow_ports }}"
+  when: allow_ports is defined and allow_ports
+- name: 允许已连接节点保持连接状态
+  iptables:
+    chain: INPUT
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+  when: is_init is defined and is_init
+- name: 禁止部分协议
+  iptables:
+    chain: INPUT
+    protocol: "{{ item }}"
+    reject_with: icmp-host-prohibited
+  with_items:
+    "{{drop_protocols}}"
+  when: drop_protocols is defined and drop_protocols
+- name: 设置表的默认规则
+  iptables:
+    chain: "{{ item.chain }}"
+    policy: "{{ item.policy }}"
+  with_items:
+    "{{chian_rules}}"
+  when: is_init is defined and is_init
+- name: 保存iptables 规则
+  shell: /etc/init.d/iptables save

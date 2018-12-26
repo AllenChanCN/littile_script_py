@@ -1,0 +1,10 @@
+安装geoip
+安装libunwind
+安装google-perftools
+
+ldconfig
+
+yum install -y pcre pcre-devel openssl openssl-devel libxml2 libxml2-devel libxslt libxslt-devel gd gd-devel perl-devel perl-ExtUtils-Embed
+
+
+./configure --prefix=/usr/local/nginx --user=nginx --group=nginx7 --without-select_module --with-file-aio --with-http_ssl_module  --with-http_realip_module  --with-http_addition_module --with-http_xslt_module --with-http_image_filter_module --with-http_geoip_module --with-http_sub_module --with-http_dav_module --with-http_flv_module --with-http_gzip_static_module --with-http_random_index_module --with-http_secure_link_module --with-http_degradation_module  --with-http_stub_status_module --with-http_perl_module --with-google_perftools_module --with-pcre
