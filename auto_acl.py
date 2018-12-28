@@ -69,8 +69,8 @@ def reload_file():
         return False
 
 def reload_service(original_list, check_list):
-    cmd1 = "firewall-cmd --add-rich-rule 'rule family="ipv4" source address="{}" accept'"
-    cmd2 = "firewall-cmd --remove-rich-rule 'rule family="ipv4" source address="{}" accept'"
+    cmd1 = "firewall-cmd --add-rich-rule 'rule family=\"ipv4\" source address=\"{}\" accept'"
+    cmd2 = "firewall-cmd --remove-rich-rule 'rule family=\"ipv4\" source address=\"{}\" accept'"
     cmdlist = []
 
     try:
