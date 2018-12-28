@@ -38,13 +38,9 @@ def check_ips():
     ret = True
     try:
         with open(ORIGINAL_FILE) as fobj1, open(CHECK_FILE) as fobj2:
-            original_list = [x.strip() for x in fobj1.readlines() if x]
-            check_list =  [x.strip() for x in fobj2.readlines() if x]
-            original_set = set(original_list)
-            check_set = set(check_list)
-            original_list = [x.strip() for x in original_set if x.strip()]
-            check_list = [x.strip() for x in check_set if x.strip()]
-            if original_set.difference(check_set):
+            original_list = sorted([x.strip() for x in fobj1.readlines() if x.strip()])
+            check_list =  sorted([x.strip() for x in fobj2.readlines() if x.strip()])
+            if original_list != check_list:
                 is_change = True
             debug_info("文件对比", "")
     except Exception as e:
