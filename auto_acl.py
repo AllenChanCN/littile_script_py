@@ -54,7 +54,7 @@ def check_ips():
 def reload_file():
     info = ""
     try:
-        with open(CHECK_FILE) as fobj1, open(CHECK_FILE, "w") as fobj2:
+        with open(CHECK_FILE) as fobj1, open(ORIGINAL_FILE, "w") as fobj2:
             linelist = [x for x in fobj1.readlines() if x.strip()]
             for l in linelist:
                 fobj2.writeline(l)
