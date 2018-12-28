@@ -90,11 +90,11 @@ function compile_install(){
     record_log="${ABSOLUTE_PATH}/${package_name}.log"
     cd ${filename} &> ${record_log}
     
-    ./configure ${compile_option} &>> ${record_log} || tmp_result=1
-    make &>> ${record_log} || tmp_result=1
-    make install &>> ${record_log} || tmp_result=1
+    ./configure ${compile_option} |tee -a ${record_log} || tmp_result=1
+    make |tee -a ${record_log} || tmp_result=1
+    make install |tee -a ${record_log} || tmp_result=1
     
-    cd ${ABSOLUTE_PATH} &>> ${record_log}
+    cd ${ABSOLUTE_PATH} |tee -a ${record_log}
     if [ "${tmp_result}" == "0" ]
     then
         Log "info" "Success to install ${package_name}."
@@ -111,14 +111,14 @@ function py_install(){
     local tmp_result=0
     local record_log="${ABSOLUTE_PATH}/${package_name}.log"
     cd ${install_dir} &> ${record_log}
-    python setup.py install &>> ${record_log} || tmp_result=$?
+    python setup.py install |tee -a ${record_log} || tmp_result=$?
     if [ "${tmp_result}" == "0" ]
     then
         Log "info" "Success to install ${package_name}."
     else
         Log "error" "Failed to install ${package_name}."
     fi
-    cd - &>> ${record_log}
+    cd - |tee -a ${record_log}
     return ${tmp_result}
 }
 
@@ -149,6 +149,11 @@ function install_py_modules(){
                 py_install "${pkg%%.*}" "${ABSOLUTE_PATH}/${pkg%%.*}*" || tmp_result=2
             fi
         else
+            pip3 install ${pkg%-*}
+            if [ "$?" == 0 ]
+                then
+                continue
+            fi
             Log "error" "Can't find package ${pkg%/*}."
             return 4
         fi
@@ -183,18 +188,18 @@ function fn_main(){
     RELATIVE_PATH=$(dirname $0)
     ABSOLUTE_PATH=$(cd ${RELATIVE_PATH} &> /dev/null;pwd)
     INSTALL_LOG="${ABSOLUTE_PATH}/install.log"
-    python_version=$(python --version 2> /dev/stdout |awk '{print $2}')
-    if [ ! -f "/opt/compare_version.sh" ]
-        then
-        Log "error"  "Cann't to find script compare_version.sh to validate version of python."
-        return 5
-    fi
-    bash /opt/compare_version.sh "${python_version}" "2.7.11" &> /dev/null
-    if [ "$?" == "0" ]
-    then
-        Log "error"  "With invallidate version of python."
-        return 3
-    fi
+#    python_version=$(python --version 2> /dev/stdout |awk '{print $2}')
+#    if [ ! -f "/opt/compare_version.sh" ]
+#        then
+#        Log "error"  "Cann't to find script compare_version.sh to validate version of python."
+#        return 5
+#    fi
+#    bash /opt/compare_version.sh "${python_version}" "2.7.11" &> /dev/null
+#    if [ "$?" == "0" ]
+#    then
+#        Log "error"  "With invallidate version of python."
+#        return 3
+#    fi
 
     base_pkg=("click-6.6.tar.gz/gz" "MarkupSafe-0.23.tar.gz/gz" "Jinja2-2.8.tar.gz/gz" "itsdangerous-0.24.tar.gz/gz" "Werkzeug-0.11.11.tar.gz/gz" "Flask-0.11.1.tar.gz/gz")
     install_py_modules "${base_pkg[*]}" "1" || return $?
