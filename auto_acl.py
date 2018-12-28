@@ -57,7 +57,7 @@ def reload_file():
         with open(CHECK_FILE) as fobj1, open(ORIGINAL_FILE, "w") as fobj2:
             linelist = [x for x in fobj1.readlines() if x.strip()]
             for l in linelist:
-                fobj2.writeline(l)
+                fobj2.write(l)
         debug_info("文件刷新", "")
         return True
     except Exception as e:
