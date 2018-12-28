@@ -18,7 +18,7 @@ def exe_cmds(cmds):
         if cmd_ret.poll() == 0:
             debug_info("执行命令 %s" % cmd, "")
         else:
-            debug_info("执行命令 %s" % cmd, cmd_ret.stdout.read()+"\n"+cmd_ret.stderr.read())
+            debug_info("执行命令 %s" % cmd, cmd_ret.stdout.read()+b"\n"+cmd_ret.stderr.read())
             return False
     return True
 
@@ -37,7 +37,7 @@ def check_ips():
     info = ""
     ret = True
     try:
-        with open(original_file) as fobj1, open(check_file) as fobj2, open(tmpfile) as fobj3:
+        with open(ORIGINAL_FILE) as fobj1, open(CHECK_FILE) as fobj2:
             original_list = [x.strip() for x in fobj1.readlines() if x]
             check_list =  [x.strip() for x in fobj2.readlines() if x]
             original_set = set(original_list)
@@ -51,7 +51,7 @@ def check_ips():
         original_list = []
         check_list = []
         exe_cmds(["systemctl stop firewalld &> /dev/null", ])
-        debug_info("文件对比", "str(e)")
+        debug_info("文件对比", str(e))
         ret = False
     return ret, is_change, original_list, check_list
 
