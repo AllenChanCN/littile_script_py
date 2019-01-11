@@ -1,12 +1,13 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 #coding=utf-8
-from __future__ import print_function
+#from __future__ import print_function
 
 import os
 import sys
 import time
 import getopt
 import tempfile
+import shutil
 import paramiko
 
 
@@ -61,9 +62,9 @@ class RHost(object):
             "/usr/local/webserver/nginx/sbin/nginx -s reload",
         ]
         for cmd in cmds:
-            stdin, stdout, stderr = self.ssh.exec_command("%s;echo $?" % cmd1)
+            stdin, stdout, stderr = self.ssh.exec_command("%s;echo $?" % cmd)
             ret_txt = stdout.read()
-            if "" in ret_txt:
+            if b"0" not in ret_txt:
                 errinfo = stderr.read()
                 return False, errinfo
         return True, ""
@@ -122,17 +123,14 @@ def reload_file(checkfile, action_type, ips):
                 continue
             line_ip = line.split("#")[0].strip().split()[-1]
             line_ip = line_ip.replace(";", "")
-            for ip in ips:
-                is_once = True
-                if is_once and not (ip == line_ip and action_type == "delete") and not action_type == "query":
-                    tfobj.write(line)
-                    is_once = False
-                if ip == line_ip and line_ip not in exists_ips and action_type != "delete":
-                    infos.append("目标IP {} 已存在文件中".format(ip))
-                if ip ==line_ip and line_ip not in exists_ips:
-                    exists_ips.add(ip)
-                if ip == line_ip:
-                    break
+
+            if not (line_ip in ips and action_type == "delete") and not action_type == "query":
+                tfobj.write(line)
+            if line_ip in ips and line_ip not in exists_ips and action_type != "delete":
+                infos.append("目标IP {} 已存在文件中".format(line_ip))
+            if line_ip in ips and line_ip not in exists_ips:
+                exists_ips.append(line_ip)
+
             line = fobj.readline()
         for ip in ips:
             if ip not in exists_ips:
@@ -147,6 +145,7 @@ def reload_file(checkfile, action_type, ips):
             line = fobj.readline()
     for ele in infos:
         print(ele)
+    shutil.move(tmp_writefile, checkfile)
     return True
 
 def showInfo(item, info):
@@ -173,7 +172,8 @@ def check_options():
     #args, opt = getopt.getopt("-a put 127.0.0.1 192", "a:",)
         for o,v in args:
             if o in ["-h", "--help"]:
-                print("")
+                print("Usage: %s -a|--action_type add|delete|query -i|--ips \"x.x.x.x y.y.y.y\"" % sys.argv[0])
+                return None
             if o in ["-a", "--action_type"]:
                 vars_dict.setdefault("action_type", v)
             if o in ["-i", "--ips"]:
@@ -195,16 +195,22 @@ def check_ips(ip_list):
             return False
     return True
 
+def del_file(f):
+    if os.path.isfile(f):
+        os.remove(f)
+    return True
+
 def main():
     #{"host":"", "user":"", "port":22, "passwd":"", "key_file":"", "remotef":""}
     clients = [
-    {"host":"47.52.47.71", "key_file":"/home/allen/.ssh/ali1", "remotef":"/usr/local/nginx-1.14/conf/allows.ip", "user":"snowchan"},
     ]
     tmpf = tempfile.mktemp()
     cfgfile = "/usr/local/webserver/nginx/conf/grant_ips/front.zone"
 
     #获取命令行传入的参数
     vars_dict = check_options()
+    if vars_dict is None:
+        return True
 
     #获取操作类型
     action_type = vars_dict.get("action_type", "")
@@ -233,6 +239,7 @@ def main():
 
     #将模板文件同步到所有客户端
     if action_type == "query":
+        del_file(tmpf)
         return True
     exe_ret = []
     for client in clients:
@@ -242,9 +249,11 @@ def main():
         exe_ret.append({c.hostname: tmp_ret})
         if not tmp_ret[0]:
             showInfo("同步文件模板到%s" % c.hostname,tmp_ret[1])
-        showInfo("同步文件模板到%s" % c.hostname, "")
+        else:
+            showInfo("同步文件模板到%s" % c.hostname, "")
         c.disconnect()
 
+    del_file(tmpf)
     return True
 
 
