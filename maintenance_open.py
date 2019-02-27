@@ -1,30 +1,39 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #coding=utf-8
 
+#from __future__ import print_function
 import sys
+import os
+import re
+import time
 import getopt
+import shutil
+
+import paramiko
+import requests
 
 
-CFG_FILE = ""
+CFG_FILE = "/usr/local/webserver/nginx/conf/sites-enabled/sydefault"
 #{"host":"", "user":"", "port":22, "passwd":"", "key_file":"", "remotef":""}
 CFG_DICT = [
 {"host":"47.52.47.71", "user":"snowchan", "key_file":"/home/allen/.ssh/ali1", }
 ]
-BAK_DIR = ""
+BAK_DIR = "/tmp/wh_bak"
 TIMESTAMP = time.strftime("%Y%m%d%H%M%S")
+CHECK_URL = "https://xz.zhhe888.com/xtwh.html"
 
 def useAge():
     useage = """使用示例：
 \t{0} -h         # 获取简易的使用信息
 \t{0} -t wh      # 切换至维护状态
 \t{0} -t open    # 切换至正常运营状态""".format(sys.argv[0])
-    print useage
+    print(useage)
 
 def check_opt():
     get_opt = {}
     try:
         opts, args = getopt.getopt(sys.argv[1:], "t:h", ["type", "help"])
-        if any(map(lambda x: x in ["-h", "--help"], [x[0] for x in opts])):
+        if any(map(lambda x: x in ["-h", "--help"], [x[0] for x in opts])) or not len(opts):
             raise AttributeError("print out help information",)
         for k, v in opts:
             if k == "-t" or k == "--type":
@@ -108,7 +117,7 @@ class RHost(object):
 
     def upload_file(self, localf, remotef):
         if not os.path.isfile(localf):
-            return False, "本地文件 %s 不存在"
+            return False, "本地文件 %s 不存在" % localf
         try:
             self.sftp.put(localpath=localf, remotepath=remotef)
         except Exception as e:
@@ -143,42 +152,63 @@ class RHost(object):
 def bak_cfgfile(rhost, file):
     try:
         for program in ("online", "maintenance"):
-            if not os.path.isdir(BAK_DIR, TIMESTAMP, program, rhost.hostname):
-                os.makedirs(BAK_DIR, TIMESTAMP, program, rhost.hostname)
+            if not os.path.isdir(os.path.join(BAK_DIR, TIMESTAMP, program, rhost.hostname)):
+                os.makedirs(os.path.join(BAK_DIR, TIMESTAMP, program, rhost.hostname))
         rhost.download_file(os.path.join(BAK_DIR, TIMESTAMP, "online", rhost.hostname, os.path.basename(file)), file)
-    except:
-        return False, ""
+    except Exception as e:
+        return False, str(e)
     return True, os.path.join(BAK_DIR, TIMESTAMP)
 
-def check_cfgfile():
+def check_cfgfile(num):
     try:
         file_list = os.listdir(BAK_DIR)
         file_list = sorted(file_list, key=lambda x:os.stat(os.path.join(BAK_DIR,x)).st_mtime, reverse=True)
-        for x in file_list[20:]:
-            shutil.rmtree(x)
+        for x in file_list[num:]:
+            shutil.rmtree(os.path.join(BAK_DIR, x))
     except Exception as e:
         return False, str(e)
     return True, ""
 
 def make_maintenance_cfgfile():
     try:
-        file_list = os.listdir(os.path.isdir(BAK_DIR, TIMESTAMP, "online"))
+        file_list = os.listdir(os.path.join(BAK_DIR, TIMESTAMP, "online"))
         for f in file_list:
             cfg_file_list = os.listdir(os.path.join(BAK_DIR, TIMESTAMP, "online", f))
             for each_cfg_file in cfg_file_list:
-                if not os.path.isdir(BAK_DIR, TIMESTAMP, "maintenance", f):
+                if not os.path.isdir(os.path.join(BAK_DIR, TIMESTAMP, "maintenance", f)):
                     os.makedirs(BAK_DIR, TIMESTAMP, "maintenance", f)
                 wfile = os.path.join(BAK_DIR, TIMESTAMP, "maintenance", f, os.path.basename(each_cfg_file))
-                with open(each_cfg_file) as fobj, open(wfile, "w")as wfobj:
-                    pass
-    except:
+                with open(os.path.join(BAK_DIR, TIMESTAMP, "online", f, each_cfg_file)) as fobj, open(wfile, "w")as wfobj:
+                    line  = fobj.readline()
+                    while line:
+                        if not line.strip():
+                            wfobj.write(line)
+                            line = fobj.readline()
+                            continue
+                        if re.match("^\s*#\s*include\s+grant_ips/xtwh.zone\s*;\s*$", line):
+                            wfobj.write("include grant_ips/xtwh.zone;\n")
+                        elif re.match("^\s*#\s*error_page\s+403\s+.*/xtwh.html\s*;\s*$", line):
+                            txt = re.search("^\s*#(\s*error_page\s+403\s+.*/xtwh.html\s*;\s*)$", line).groups()[0]
+                            wfobj.write(txt)
+                        elif re.match("^\s*error_page\s+403\s+.*/fwxz.html\s*;\s*$", line):
+                            txt = re.search("^(\s*error_page\s+403\s+.*/fwxz.html\s*;\s*)$", line).groups()[0]
+                            wfobj.write("# %s" % txt)
+                        else:
+                            wfobj.write(line)
+                        line = fobj.readline()
+                        continue
+    except Exception as e:
+        print(e)
         return False
     return True
 
 def put_cfgfile(rhost,file):
     try:
-        rhost.upload_file(os.path.join(BAK_DIR, TIMESTAMP, "maintenance", rhost.hostname), file)
-    except:
+        upload_ret = rhost.upload_file(os.path.join(BAK_DIR, TIMESTAMP, "maintenance", rhost.hostname, os.path.basename(file)), file)
+        if not upload_ret[0]:
+            raise IOError(upload_ret[1],)
+    except Exception as e:
+        print(e)
         return False
     return True
 
@@ -189,27 +219,50 @@ def reload_service(rhost):
     reload_ret = rhost.reload_service()
     return reload_ret
 
-def recheck_webpage():
-    pass
+def recheck_webpage(url, is_wh=True):
+    http_headers = { 'Accept': '*/*','Connection': 'keep-alive', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.116 Safari/537.36'}
+    req = requests.get(url, headers=http_headers, timeout=10)
+    if is_wh and "xtwh.html" in req.url:
+        return True
+    elif not is_wh and "xtwh.html" not in req.url:
+        return True
+    return False
 
 def do_maintenance():
-    for ele in CFG_DICT.getitems():
+    for ele in CFG_DICT:
         rhost = RHost(**ele)
-        bak_cfgfile(rhost, ele.get("cfg_file", CFG_FILE))
-    check_cfgfile()
+        bak_ret = bak_cfgfile(rhost, ele.get("cfg_file", CFG_FILE))
+    check_cfgfile(1)
     make_maintenance_cfgfile()
-    put_cfgfile()
+    for ele in CFG_DICT:
+        rhost = RHost(**ele)
+        put_cfgfile(rhost, ele.get("cfg_file", CFG_FILE))
     mail_info()
-    reload_service()
-    recheck_webpage()
+    for ele in CFG_DICT:
+        rhost = RHost(**ele)
+        reload_service(rhost)
+    recheck_webpage(CHECK_URL,is_wh=True)
     mail_info()
-    pass
+    return True
 
 def do_open():
-    put_cfgfile()
+    global TIMESTAMP
+    for ele in sorted(os.listdir(BAK_DIR), key=lambda x:os.stat(os.path.join(BAK_DIR,x)).st_mtime, reverse=True):
+        is_match = True
+        for client in CFG_DICT:
+            if not os.path.isfile(os.path.join(BAK_DIR, ele, "online", client.get("host", "null"), os.path.basename(client.get("cfg_file", CFG_FILE)))):
+                is_match = False
+        if is_match:
+            TIMESTAMP = ele
+            break
+    print(TIMESTAMP)
+    return True
+    for ele in CFG_DICT:
+        rhost = RHost(**ele)
+        put_cfgfile(rhost, ele.get("cfg_file", CFG_FILE))
     mail_info()
     reload_service()
-    recheck_webpage()
+    recheck_webpage(CHECK_URL, is_wh=False)
     mail_info()
     pass
 
@@ -235,7 +288,7 @@ def main():
     if opts_dict is None:
         return False
     exe_type = opts_dict.get("type", "")
-    if exe_type == "maintenance":
+    if exe_type == "wh":
         do_maintenance()
     elif exe_type == "open":
         do_open()
