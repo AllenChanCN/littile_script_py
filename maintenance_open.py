@@ -8,6 +8,7 @@ import re
 import time
 import getopt
 import shutil
+import logging
 
 import paramiko
 import requests
@@ -21,6 +22,26 @@ CFG_DICT = [
 BAK_DIR = "/tmp/wh_bak"
 TIMESTAMP = time.strftime("%Y%m%d%H%M%S")
 CHECK_URL = "https://xz.zhhe888.com/xtwh.html"
+
+def init_logger(log_name, log_file):
+    logger = logging.getLogger(log_name)
+    logger.setLevel(logging.DEBUG)
+
+    ch = logging.FileHandler(log_file)
+    ch.setLevel(logging.ERROR)
+
+    ch2 = logging.StreamHandler()
+    ch2.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    #ch.setFormatter(formatter)
+    #ch2.setFormatter(formatter)
+
+    #logger.addHandler(ch)
+    logger.addHandler(ch2)
+
+    return logger
 
 def useAge():
     useage = """使用示例：
@@ -202,9 +223,13 @@ def make_maintenance_cfgfile():
         return False
     return True
 
-def put_cfgfile(rhost,file):
+def put_cfgfile(rhost,file, is_wh=True):
     try:
-        upload_ret = rhost.upload_file(os.path.join(BAK_DIR, TIMESTAMP, "maintenance", rhost.hostname, os.path.basename(file)), file)
+        if is_wh:
+            tag = "maintenance"
+        else:
+            tag = "online"
+        upload_ret = rhost.upload_file(os.path.join(BAK_DIR, TIMESTAMP, tag, rhost.hostname, os.path.basename(file)), file)
         if not upload_ret[0]:
             raise IOError(upload_ret[1],)
     except Exception as e:
@@ -228,12 +253,24 @@ def recheck_webpage(url, is_wh=True):
         return True
     return False
 
-def do_maintenance():
+def do_maintenance(logger):
+    logger.info("开始切换运营状态，运行--->维护。")
+    check_ret = recheck_webpage(CHECK_URL,is_wh=False)
+    if not check_ret:
+        logger.warn("当前运营状态为\"维护中\"，放弃切换为\"维护\"状态，结束操作。", )
+        return False
     for ele in CFG_DICT:
         rhost = RHost(**ele)
         bak_ret = bak_cfgfile(rhost, ele.get("cfg_file", CFG_FILE))
-    check_cfgfile(1)
-    make_maintenance_cfgfile()
+        if not bak_ret[0]:
+            logger.error("获取配置文件 {0} 失败，原因：{1}。结束操作。".format(ele.get("cfg_file", CFG_FILE), bak_ret[1]))
+            return False
+        logger.info("获取配置文件 {0} 成功。备份位置 {1}".format(ele.get("cfg_file", CFG_FILE), bak_ret[1]))
+    check_ret = check_cfgfile(1)
+    if not check_ret:
+        logger.error("检查备份目录 {0} 下的文件并删除过期文件失败，请检查。结束操作。".format(BAK_DIR))
+        return False
+    make_ret = make_maintenance_cfgfile()
     for ele in CFG_DICT:
         rhost = RHost(**ele)
         put_cfgfile(rhost, ele.get("cfg_file", CFG_FILE))
@@ -241,11 +278,17 @@ def do_maintenance():
     for ele in CFG_DICT:
         rhost = RHost(**ele)
         reload_service(rhost)
-    recheck_webpage(CHECK_URL,is_wh=True)
+    check_ret = recheck_webpage(CHECK_URL,is_wh=True)
+    if not check_ret:
+        return False
     mail_info()
     return True
 
-def do_open():
+def do_open(logger):
+    check_ret = recheck_webpage(CHECK_URL,is_wh=True)
+    if not check_ret:
+        logger.warn("当前运营状态为\"运行中\"，放弃切换为\"运行\"状态，结束操作。", )
+        return False
     global TIMESTAMP
     for ele in sorted(os.listdir(BAK_DIR), key=lambda x:os.stat(os.path.join(BAK_DIR,x)).st_mtime, reverse=True):
         is_match = True
@@ -255,43 +298,48 @@ def do_open():
         if is_match:
             TIMESTAMP = ele
             break
-    print(TIMESTAMP)
-    return True
     for ele in CFG_DICT:
         rhost = RHost(**ele)
-        put_cfgfile(rhost, ele.get("cfg_file", CFG_FILE))
+        put_ret = put_cfgfile(rhost, ele.get("cfg_file", CFG_FILE), is_wh=False)
+        print(put_ret)
     mail_info()
-    reload_service()
+    for ele in CFG_DICT:
+        rhost = RHost(**ele)
+        reload_service(rhost)
     recheck_webpage(CHECK_URL, is_wh=False)
     mail_info()
-    pass
+    return True
 
 def main():
-#挂机维护
-# 1. 备份配置文件
-# 2. 删除过久或者过多的备份文件
-# 3. 修改配置文件
-# 4. 替换配置文件
-# 5. 邮件通知准备停机维护
-# 6. 刷新服务
-# 7. 确认是否成功挂维护
-# 8. 邮件通知已经停机维护
+    #挂机维护
+    # 1. 备份配置文件
+    # 2. 删除过久或者过多的备份文件
+    # 3. 修改配置文件
+    # 4. 替换配置文件
+    # 5. 邮件通知准备停机维护
+    # 6. 刷新服务
+    # 7. 确认是否成功挂维护
+    # 8. 邮件通知已经停机维护
 
-#正常运营
-# 1. 替换配置文件
-# 2. 邮件通知准备正常运营
-# 3. 刷新服务
-# 4. 确认页面是否正常运营
-# 5. 邮件通知已经正常运营
+    #正常运营
+    # 1. 替换配置文件
+    # 2. 邮件通知准备正常运营
+    # 3. 刷新服务
+    # 4. 确认页面是否正常运营
+    # 5. 邮件通知已经正常运营
+
+    log_name = "maintenance_online"
+    log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "maintenance.log")
+    logger = init_logger(log_name, log_file)
 
     opts_dict = check_opt()
     if opts_dict is None:
         return False
     exe_type = opts_dict.get("type", "")
     if exe_type == "wh":
-        do_maintenance()
+        do_maintenance(logger)
     elif exe_type == "open":
-        do_open()
+        do_open(logger)
     else:
         return False
     return True
