@@ -22,23 +22,26 @@ CFG_DICT = [
 BAK_DIR = "/tmp/wh_bak"
 TIMESTAMP = time.strftime("%Y%m%d%H%M%S")
 CHECK_URL = "https://xz.zhhe888.com/xtwh.html"
+LOG_NAME = "maintenance_online"
+LOG_FILE = os.path.join(BAK_DIR, "maintenance.log")
+#LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "maintenance.log")
 
 def init_logger(log_name, log_file):
     logger = logging.getLogger(log_name)
     logger.setLevel(logging.DEBUG)
 
     ch = logging.FileHandler(log_file)
-    ch.setLevel(logging.ERROR)
+    ch.setLevel(logging.DEBUG)
 
     ch2 = logging.StreamHandler()
     ch2.setLevel(logging.DEBUG)
 
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(process)s - %(name)s - %(levelname)s - %(message)s')
 
-    #ch.setFormatter(formatter)
-    #ch2.setFormatter(formatter)
+    ch.setFormatter(formatter)
+    ch2.setFormatter(formatter)
 
-    #logger.addHandler(ch)
+    logger.addHandler(ch)
     logger.addHandler(ch2)
 
     return logger
@@ -183,6 +186,7 @@ def bak_cfgfile(rhost, file):
 def check_cfgfile(num):
     try:
         file_list = os.listdir(BAK_DIR)
+        file_list = [x for x in file_list if re.match("^\d+$",x)]
         file_list = sorted(file_list, key=lambda x:os.stat(os.path.join(BAK_DIR,x)).st_mtime, reverse=True)
         for x in file_list[num:]:
             shutil.rmtree(os.path.join(BAK_DIR, x))
@@ -219,9 +223,8 @@ def make_maintenance_cfgfile():
                         line = fobj.readline()
                         continue
     except Exception as e:
-        print(e)
-        return False
-    return True
+        return False, str(e)
+    return True,""
 
 def put_cfgfile(rhost,file, is_wh=True):
     try:
@@ -233,12 +236,52 @@ def put_cfgfile(rhost,file, is_wh=True):
         if not upload_ret[0]:
             raise IOError(upload_ret[1],)
     except Exception as e:
-        print(e)
-        return False
-    return True
+        return False, str(e)
+    return True, ""
 
 def mail_info():
-    pass
+    toname='allen.c@auxworld.net'
+    subject = "XX平台切换web运营状态记录邮件"
+
+    info = "<h2>{}</h2><pre>".format(subject)
+    with open(LOG_FILE) as fobj:
+        info += fobj.read()
+    info += "</pre>"
+
+#    os.system('python /data/shell/mail.py %s %s %s' %(toname, subject, info))
+    print(info)
+
+def mail_notice(is_wh=True, timenum=180):
+    toname='allen.c@auxworld.net'
+    subject = "XX平台切换web运营状态预通知邮件"
+    try:
+        timenum = int(timenum)
+    except:
+        timenum = 180
+    time1 = time.strftime("%Y-%m-%d %H:%M:%S")
+    time2 = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()+timenum))
+    if is_wh:
+        t1 = "维护"
+        t2 = "运营"
+    else:
+        t2 = "维护"
+        t1 = "运营"
+
+    info = """<h2>{}</h2>
+<p>预计 <strong>{}秒</strong> 后开始切换web运营状态。</p>
+<pre>          <strong>状态</strong>： <span style="color:red">{}</span> ---> <span style="color:blue">{}</span>
+     <strong>当前时间为</strong>： <span>{}</span>
+     <strong>切换时间为</strong>： <span>{}</span>
+        <strong>本机IP</strong>： <span>{}</span>
+      <strong>终止cmds</strong>： <span>kill -9 {} 或者执行者直接 ctrl+C 终止操作</span>
+</pre>""".format(subject, timenum, t1, t2, time1, time2, "x.x.x.x", os.getpid())
+
+#    os.system('python /data/shell/mail.py %s %s %s' %(toname, subject, info))
+#    n = 0
+#    while  n < timenum:
+#        n += 1
+#        time.sleep(1)
+#    print(info)
 
 def reload_service(rhost):
     reload_ret = rhost.reload_service()
@@ -254,43 +297,83 @@ def recheck_webpage(url, is_wh=True):
     return False
 
 def do_maintenance(logger):
+    #挂机维护
     logger.info("开始切换运营状态，运行--->维护。")
+
+    # 1. 检查网页当前运营状态是否为运营中。
     check_ret = recheck_webpage(CHECK_URL,is_wh=False)
-    if not check_ret:
+    if check_ret:
         logger.warn("当前运营状态为\"维护中\"，放弃切换为\"维护\"状态，结束操作。", )
         return False
+
+    # 2. 备份所有web的配置文件
     for ele in CFG_DICT:
         rhost = RHost(**ele)
         bak_ret = bak_cfgfile(rhost, ele.get("cfg_file", CFG_FILE))
         if not bak_ret[0]:
             logger.error("获取配置文件 {0} 失败，原因：{1}。结束操作。".format(ele.get("cfg_file", CFG_FILE), bak_ret[1]))
             return False
-        logger.info("获取配置文件 {0} 成功。备份位置 {1}".format(ele.get("cfg_file", CFG_FILE), bak_ret[1]))
+        logger.info("获取配置文件 {0} 成功。备份位置 {1} 。".format(ele.get("cfg_file", CFG_FILE), bak_ret[1]))
+
+    # 3. 删除过久或者过多的备份文件
     check_ret = check_cfgfile(1)
     if not check_ret:
         logger.error("检查备份目录 {0} 下的文件并删除过期文件失败，请检查。结束操作。".format(BAK_DIR))
         return False
+
+    # 4. 修改配置文件
     make_ret = make_maintenance_cfgfile()
+    if not make_ret[0]:
+        logger.error("修改配置文件失败，失败原因：{0}。中断操作。".format(make_ret[1]))
+        return False
+    logger.info("修改配置文件成功，保存路径为 {}。".format(os.path.join(BAK_DIR, TIMESTAMP, "online")))
+
+    # 5. 邮件通知准备停机维护
+    mail_notice(is_wh=False)
+
+    # 6. 生成维护状态的配置文件
     for ele in CFG_DICT:
         rhost = RHost(**ele)
-        put_cfgfile(rhost, ele.get("cfg_file", CFG_FILE))
-    mail_info()
+        put_ret = put_cfgfile(rhost, ele.get("cfg_file", CFG_FILE))
+        if not put_ret[0]:
+            logger.error("推送【维护状态】配置文件到 {} 失败，原因为： {}。中断操作。".format(rhost.hostname, put_ret[1]),)
+            return False
+    logger.info("推送【维护状态】的配置文件成功。")
+
+    # 7. 刷新服务
     for ele in CFG_DICT:
         rhost = RHost(**ele)
-        reload_service(rhost)
+        reload_ret = reload_service(rhost)
+        if not reload_ret[0]:
+            logger.error("刷新主机 {} nginx配置文件失败，原因：{}。中断操作。".format(rhost.hostname, reload_ret[1]),)
+            return False
+    logger.info("刷新nginx配置文件成功。",)
+
+    # 8. 确认是否成功挂维护
     check_ret = recheck_webpage(CHECK_URL,is_wh=True)
     if not check_ret:
+        logger.error("切换运营状态至【维护】失败，请检查。中断操作。", )
         return False
-    mail_info()
+    logger.info("切换运营状态至【维护】成功。", )
+
     return True
 
 def do_open(logger):
+    #正常运营
+    logger.info("开始切换运营状态，运行--->维护。")
+
+    # 1. 确认网页当前运营状态为维护中
     check_ret = recheck_webpage(CHECK_URL,is_wh=True)
     if not check_ret:
         logger.warn("当前运营状态为\"运行中\"，放弃切换为\"运行\"状态，结束操作。", )
         return False
+
+    # 2. 获取最新一次备份的正常运营状态的配置文件
     global TIMESTAMP
-    for ele in sorted(os.listdir(BAK_DIR), key=lambda x:os.stat(os.path.join(BAK_DIR,x)).st_mtime, reverse=True):
+    is_match = False
+    file_list = os.listdir(BAK_DIR)
+    file_list = [x for x in file_list if re.match("^\d+$",x)]
+    for ele in sorted(file_list, key=lambda x:os.stat(os.path.join(BAK_DIR,x)).st_mtime, reverse=True):
         is_match = True
         for client in CFG_DICT:
             if not os.path.isfile(os.path.join(BAK_DIR, ele, "online", client.get("host", "null"), os.path.basename(client.get("cfg_file", CFG_FILE)))):
@@ -298,51 +381,61 @@ def do_open(logger):
         if is_match:
             TIMESTAMP = ele
             break
+    if not is_match:
+        logger.error("在备份目录 {} 获取最近一次有效备份配置文件失败，中断操作。".format(BAK_DIR), )
+        return False
+
+    # 3. 邮件通知准备正常运营
+    mail_notice()
+
+    # 4. 替换配置文件
     for ele in CFG_DICT:
         rhost = RHost(**ele)
         put_ret = put_cfgfile(rhost, ele.get("cfg_file", CFG_FILE), is_wh=False)
-        print(put_ret)
-    mail_info()
+        if not put_ret[0]:
+            logger.error("推送【维护状态】配置文件到 {} 失败，原因为： {}。中断操作。".format(rhost.hostname, put_ret[1]),)
+            return False
+    logger.info("推送【维护状态】的配置文件成功。")
+
+    # 5. 刷新服务
     for ele in CFG_DICT:
         rhost = RHost(**ele)
-        reload_service(rhost)
-    recheck_webpage(CHECK_URL, is_wh=False)
-    mail_info()
+        reload_ret = reload_service(rhost)
+        if not reload_ret[0]:
+            logger.error("刷新主机 {} nginx配置文件失败，原因：{}。中断操作。".format(rhost.hostname, reload_ret[1]),)
+            return False
+    logger.info("刷新nginx配置文件成功。",)
+
+    # 6. 确认页面是否正常运营
+    check_ret = recheck_webpage(CHECK_URL, is_wh=False)
+    if not check_ret:
+        logger.error("切换运营状态至【维护】失败，请检查。中断操作。", )
+        return False
+    logger.info("切换运营状态至【维护】成功。", )
+
     return True
 
 def main():
-    #挂机维护
-    # 1. 备份配置文件
-    # 2. 删除过久或者过多的备份文件
-    # 3. 修改配置文件
-    # 4. 替换配置文件
-    # 5. 邮件通知准备停机维护
-    # 6. 刷新服务
-    # 7. 确认是否成功挂维护
-    # 8. 邮件通知已经停机维护
-
-    #正常运营
-    # 1. 替换配置文件
-    # 2. 邮件通知准备正常运营
-    # 3. 刷新服务
-    # 4. 确认页面是否正常运营
-    # 5. 邮件通知已经正常运营
-
-    log_name = "maintenance_online"
-    log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "maintenance.log")
-    logger = init_logger(log_name, log_file)
+    #设置日志对象
+    with open(LOG_FILE, "w") as fobj:
+        fobj.write("")
+    logger = init_logger(LOG_NAME, LOG_FILE)
 
     opts_dict = check_opt()
     if opts_dict is None:
         return False
     exe_type = opts_dict.get("type", "")
+
+    exe_ret = False
     if exe_type == "wh":
-        do_maintenance(logger)
+        exe_ret = do_maintenance(logger)
     elif exe_type == "open":
-        do_open(logger)
-    else:
-        return False
-    return True
+        exe_ret = do_open(logger)
+
+    # 邮件通知已经正常运营
+    mail_info()
+
+    return exe_ret
 
 if __name__ == "__main__":
     exe_ret = main()
