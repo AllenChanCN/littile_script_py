@@ -171,9 +171,29 @@ def exec_certbo_single(info):
         cmd += " -d \"%s\"" % ele[0]
     cmd_info = {"cmd":cmd, "endTag":"# ", "isGet":True, "match":[("(Y)es/(N)o: ", "y"),("Press Enter to Continue", "")]}
     ret = s.exeCmds([cmd_info])
+    ret = deal_Info(ret)
     print(ret)
+    return ret
 
-    pass
+def deal_Info(info):
+    ret = []
+    n = 0
+    for ele in info:
+        if re.match("^\s*Please deploy a DNS TXT record under the name\s*$", ele):
+            n = 3
+
+        if n == 0:
+            domain = ele.split()[0]
+        elif n == 2:
+            value = ele.strip()
+
+        if n > 0:
+            n -= 1
+        elif n < 0:
+            ret.append([domain, value])
+            domain = ""
+            value = ""
+    return ret
 
 def exec_certbo(infos):
     exec_certbo_single(infos[0])
