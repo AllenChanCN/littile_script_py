@@ -1,7 +1,15 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #coding=utf-8
+#notice:脚本转移需要修改的几个地方：
+#1，确定python版本,2和3皆可
+#2，CFG_DICT里主机的定义
+#3，CFG_FILE对应具体配置文件的路径
+#4，CHECK_URL的具体定义
+#5，修改执行脚本的本机IP
+#6，修改平台名称
+#7，确保 /data/shell/mail.py 存在并能正常使用
 
-#from __future__ import print_function
+from __future__ import print_function
 import sys
 import os
 import re
@@ -14,17 +22,25 @@ import paramiko
 import requests
 
 
-CFG_FILE = "/usr/local/webserver/nginx/conf/sites-enabled/sydefault"
+CFG_FILE = "/usr/local/webserver/nginx/conf/sites-enabled/00scdefault"
 #{"host":"", "user":"", "port":22, "passwd":"", "key_file":"", "remotef":""}
 CFG_DICT = [
-{"host":"47.52.47.71", "user":"snowchan", "key_file":"/home/allen/.ssh/ali1", }
+{"host":"10.10.11.106", "user":"root", "key_file":"/root/.ssh/self", }
 ]
 BAK_DIR = "/tmp/wh_bak"
+if not os.path.isdir(BAK_DIR):
+    try:
+        os.makedirs(BAK_DIR)
+    except:
+        print("创建备份目录 {} 失败。".format(BAK_DIR))
+        sys.exit(1)
 TIMESTAMP = time.strftime("%Y%m%d%H%M%S")
-CHECK_URL = "https://xz.zhhe888.com/xtwh.html"
+CHECK_URL = "http://pre.123ssc.net"
 LOG_NAME = "maintenance_online"
 LOG_FILE = os.path.join(BAK_DIR, "maintenance.log")
-#LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "maintenance.log")
+TONAME = 'allen.c@auxworld.net'
+LOCAL_IP = "52.196.43.37:2206"
+PROGRAM_NAME = "杏彩 PRE"
 
 def init_logger(log_name, log_file):
     logger = logging.getLogger(log_name)
@@ -48,22 +64,38 @@ def init_logger(log_name, log_file):
 
 def useAge():
     useage = """使用示例：
-\t{0} -h         # 获取简易的使用信息
-\t{0} -t wh      # 切换至维护状态
-\t{0} -t open    # 切换至正常运营状态""".format(sys.argv[0])
+\t{0} -h                                                      # 获取简易的使用信息
+\t{0} [-e|--execute] wh [-t|--time] 20                        # 20秒后切换至维护状态
+\t{0} [-e|--execute] wh [-t|--time] "2019-03-03 10:10:10"     # 2019年3月3日10点10分10秒切换至维护状态
+\t{0} [-e|--execute] wh                                       # 切换至维护状态
+\t{0} [-e|--execute] open                                     # 切换至正常运营状态""".format(sys.argv[0])
     print(useage)
 
-def check_opt():
+def check_opt(logger):
     get_opt = {}
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "t:h", ["type", "help"])
-        if any(map(lambda x: x in ["-h", "--help"], [x[0] for x in opts])) or not len(opts):
+        opts, args = getopt.getopt(sys.argv[1:], "e:t:h", ["execute=", "time=", "help"])
+        if any(map(lambda x: x in ["-h", "--help"], [x[0] for x in opts])):
             raise AttributeError("print out help information",)
         for k, v in opts:
-            if k == "-t" or k == "--type":
+            if k == "-e" or k == "--execute":
                 if v not in ["wh", "open"]:
+                    logger.error("输入动作类型参数值有误")
                     raise AttributeError("invalidate arguments",)
                 get_opt.setdefault("type", v)
+            if k == "-t" or k == "--time":
+                if re.match("^\d+$", v):
+                    get_opt.setdefault("time", v)
+                elif re.match("^\d{4}(-\d{2}){2}\s+\d{2}(:\d{2}){2}$", v):
+                    timenum = time.strftime("%s", time.strptime(v, "%Y-%m-%d %H:%M:%S"))
+                    timenum = int(timenum) - int(time.time())
+                    if timenum < 0:
+                        logger.error("输入时间参数值不符合要求")
+                        return None
+                    get_opt.setdefault("time", timenum)
+        if not get_opt.get("type", ""):
+            logger.error("输入参数缺少动作类型")
+            raise AttributeError("invalidate arguments",)
     except:
         useAge()
         return None
@@ -240,26 +272,31 @@ def put_cfgfile(rhost,file, is_wh=True):
     return True, ""
 
 def mail_info():
-    toname='allen.c@auxworld.net'
-    subject = "XX平台切换web运营状态记录邮件"
+    toname=TONAME
+    subject = "{} 平台切换web运营状态记录邮件".format(PROGRAM_NAME)
 
     info = "<h2>{}</h2><pre>".format(subject)
     with open(LOG_FILE) as fobj:
         info += fobj.read()
     info += "</pre>"
 
-#    os.system('python /data/shell/mail.py %s %s %s' %(toname, subject, info))
-    print(info)
+    os.system('python /data/shell/mail.py \"%s\" \"%s\" \"%s\" &' %(toname, subject, info))
+    return True
 
-def mail_notice(is_wh=True, timenum=180):
-    toname='allen.c@auxworld.net'
-    subject = "XX平台切换web运营状态预通知邮件"
-    try:
-        timenum = int(timenum)
-    except:
-        timenum = 180
+def mail_notice(timenum, is_wh=True):
+    if not timenum:
+        return True
+    toname=TONAME
+    subject = "{} 平台切换web运营状态预通知邮件".format(PROGRAM_NAME)
     time1 = time.strftime("%Y-%m-%d %H:%M:%S")
-    time2 = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()+timenum))
+    try:
+        if re.match("^\d+$", str(timenum)):
+            timenum = int(timenum)
+            time2 = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()+timenum))
+        else:
+            return True
+    except:
+        return True
     if is_wh:
         t1 = "维护"
         t2 = "运营"
@@ -274,14 +311,14 @@ def mail_notice(is_wh=True, timenum=180):
      <strong>切换时间为</strong>： <span>{}</span>
         <strong>本机IP</strong>： <span>{}</span>
       <strong>终止cmds</strong>： <span>kill -9 {} 或者执行者直接 ctrl+C 终止操作</span>
-</pre>""".format(subject, timenum, t1, t2, time1, time2, "x.x.x.x", os.getpid())
+</pre>""".format(subject, timenum, t1, t2, time1, time2, LOCAL_IP, os.getpid())
 
-#    os.system('python /data/shell/mail.py %s %s %s' %(toname, subject, info))
-#    n = 0
-#    while  n < timenum:
-#        n += 1
-#        time.sleep(1)
-#    print(info)
+    os.system('python /data/shell/mail.py \"%s\" \"%s\" \"%s\" &' %(toname, subject, info))
+    n = 0
+    while  n < timenum:
+        n += 1
+        time.sleep(1)
+    return True
 
 def reload_service(rhost):
     reload_ret = rhost.reload_service()
@@ -289,20 +326,23 @@ def reload_service(rhost):
 
 def recheck_webpage(url, is_wh=True):
     http_headers = { 'Accept': '*/*','Connection': 'keep-alive', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.116 Safari/537.36'}
-    req = requests.get(url, headers=http_headers, timeout=10)
-    if is_wh and "xtwh.html" in req.url:
-        return True
-    elif not is_wh and "xtwh.html" not in req.url:
-        return True
+    n = 0
+    while n < 10:
+        req = requests.get(url, headers=http_headers, timeout=10)
+        if is_wh and "xtwh.html" in req.url:
+            return True
+        elif not is_wh and "xtwh.html" not in req.url:
+            return True
+        n += 1
     return False
 
-def do_maintenance(logger):
+def do_maintenance(logger,wait_time):
     #挂机维护
     logger.info("开始切换运营状态，运行--->维护。")
 
     # 1. 检查网页当前运营状态是否为运营中。
     check_ret = recheck_webpage(CHECK_URL,is_wh=False)
-    if check_ret:
+    if not check_ret:
         logger.warn("当前运营状态为\"维护中\"，放弃切换为\"维护\"状态，结束操作。", )
         return False
 
@@ -316,7 +356,7 @@ def do_maintenance(logger):
         logger.info("获取配置文件 {0} 成功。备份位置 {1} 。".format(ele.get("cfg_file", CFG_FILE), bak_ret[1]))
 
     # 3. 删除过久或者过多的备份文件
-    check_ret = check_cfgfile(1)
+    check_ret = check_cfgfile(10)
     if not check_ret:
         logger.error("检查备份目录 {0} 下的文件并删除过期文件失败，请检查。结束操作。".format(BAK_DIR))
         return False
@@ -329,9 +369,9 @@ def do_maintenance(logger):
     logger.info("修改配置文件成功，保存路径为 {}。".format(os.path.join(BAK_DIR, TIMESTAMP, "online")))
 
     # 5. 邮件通知准备停机维护
-    mail_notice(is_wh=False)
+    mail_notice(wait_time, is_wh=False)
 
-    # 6. 生成维护状态的配置文件
+    # 6. 推送维护状态的配置文件
     for ele in CFG_DICT:
         rhost = RHost(**ele)
         put_ret = put_cfgfile(rhost, ele.get("cfg_file", CFG_FILE))
@@ -358,9 +398,9 @@ def do_maintenance(logger):
 
     return True
 
-def do_open(logger):
+def do_open(logger, wait_time):
     #正常运营
-    logger.info("开始切换运营状态，运行--->维护。")
+    logger.info("开始切换运营状态，维护--->运行。")
 
     # 1. 确认网页当前运营状态为维护中
     check_ret = recheck_webpage(CHECK_URL,is_wh=True)
@@ -386,16 +426,16 @@ def do_open(logger):
         return False
 
     # 3. 邮件通知准备正常运营
-    mail_notice()
+    mail_notice(wait_time)
 
     # 4. 替换配置文件
     for ele in CFG_DICT:
         rhost = RHost(**ele)
         put_ret = put_cfgfile(rhost, ele.get("cfg_file", CFG_FILE), is_wh=False)
         if not put_ret[0]:
-            logger.error("推送【维护状态】配置文件到 {} 失败，原因为： {}。中断操作。".format(rhost.hostname, put_ret[1]),)
+            logger.error("推送【运营状态】配置文件到 {} 失败，原因为： {}。中断操作。".format(rhost.hostname, put_ret[1]),)
             return False
-    logger.info("推送【维护状态】的配置文件成功。")
+    logger.info("推送【运营状态】的配置文件成功。")
 
     # 5. 刷新服务
     for ele in CFG_DICT:
@@ -409,30 +449,32 @@ def do_open(logger):
     # 6. 确认页面是否正常运营
     check_ret = recheck_webpage(CHECK_URL, is_wh=False)
     if not check_ret:
-        logger.error("切换运营状态至【维护】失败，请检查。中断操作。", )
+        logger.error("切换运营状态至【运营】失败，请检查。中断操作。", )
         return False
-    logger.info("切换运营状态至【维护】成功。", )
+    logger.info("切换运营状态至【运营】成功。", )
 
     return True
 
 def main():
-    #设置日志对象
+    #清理旧日志文件
     with open(LOG_FILE, "w") as fobj:
         fobj.write("")
+    #设置日志对象
     logger = init_logger(LOG_NAME, LOG_FILE)
 
-    opts_dict = check_opt()
+    opts_dict = check_opt(logger)
     if opts_dict is None:
         return False
     exe_type = opts_dict.get("type", "")
+    wait_time = opts_dict.get("time", "")
 
     exe_ret = False
     if exe_type == "wh":
-        exe_ret = do_maintenance(logger)
+        exe_ret = do_maintenance(logger, wait_time)
     elif exe_type == "open":
-        exe_ret = do_open(logger)
+        exe_ret = do_open(logger, wait_time)
 
-    # 邮件通知已经正常运营
+    # 邮件发送修改记录
     mail_info()
 
     return exe_ret
