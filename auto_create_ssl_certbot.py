@@ -179,6 +179,7 @@ def deal_Info(info):
     ret = []
     n = 0
     for ele in info:
+        ele = str(ele, encoding="utf-8")
         if re.match("^\s*Please deploy a DNS TXT record under the name\s*$", ele):
             n = 3
 
